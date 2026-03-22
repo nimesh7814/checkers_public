@@ -1,0 +1,72 @@
+name: checkers
+
+services:
+  # ── PostgreSQL database ──────────────────────────────────────────────────
+  db:
+    container_name: checkers-db
+    image: public.ecr.aws/docker/library/postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB:       "${POSTGRES_DB:-checkers}"
+      POSTGRES_USER:     "${POSTGRES_USER:-checkers}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-checkers_password}"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-checkers}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ── Node.js / Express backend ────────────────────────────────────────────
+  backend:
+    container_name: checkers-backend
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      DB_HOST:      "${DB_HOST:-db}"
+      DB_PORT:      "${DB_PORT:-5432}"
+      DB_NAME:      "${DB_NAME:-checkers}"
+      DB_USER:      "${DB_USER:-checkers}"
+      DB_PASSWORD:  "${DB_PASSWORD:-checkers_password}"
+      JWT_SECRET:   "${JWT_SECRET:-change-me-in-production-please}"
+      PORT:         "${PORT:-3001}"
+      CORS_ORIGIN:  "${CORS_ORIGIN:-http://localhost:8036}"
+      DEMO_USER_1_USERNAME: "${DEMO_USER_1_USERNAME:-}"
+      DEMO_USER_1_FIRST_NAME: "${DEMO_USER_1_FIRST_NAME:-}"
+      DEMO_USER_1_LAST_NAME: "${DEMO_USER_1_LAST_NAME:-}"
+      DEMO_USER_1_EMAIL: "${DEMO_USER_1_EMAIL:-}"
+      DEMO_USER_1_BIRTHDAY: "${DEMO_USER_1_BIRTHDAY:-}"
+      DEMO_USER_1_COUNTRY: "${DEMO_USER_1_COUNTRY:-}"
+      DEMO_USER_1_PASSWORD: "${DEMO_USER_1_PASSWORD:-}"
+      DEMO_USER_2_USERNAME: "${DEMO_USER_2_USERNAME:-}"
+      DEMO_USER_2_FIRST_NAME: "${DEMO_USER_2_FIRST_NAME:-}"
+      DEMO_USER_2_LAST_NAME: "${DEMO_USER_2_LAST_NAME:-}"
+      DEMO_USER_2_EMAIL: "${DEMO_USER_2_EMAIL:-}"
+      DEMO_USER_2_BIRTHDAY: "${DEMO_USER_2_BIRTHDAY:-}"
+      DEMO_USER_2_COUNTRY: "${DEMO_USER_2_COUNTRY:-}"
+      DEMO_USER_2_PASSWORD: "${DEMO_USER_2_PASSWORD:-}"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # ── React frontend served by nginx ──────────────────────────────────────
+  frontend:
+    container_name: checkers
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: "${VITE_API_URL:-/api}"
+    restart: unless-stopped
+    ports:
+      - "8036:80"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
